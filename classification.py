@@ -51,24 +51,45 @@ X_clean = [X[:, i] for X, i in zip(X, keep_idx)]
 X = sp.sparse.vstack(X_clean, format='csr')
 Y = np.concatenate(Y)
 
+indices = np.random.permutation(X.shape[0])
+X = X[indices]
+Y = Y[indices]
+
+X = X[:700000]
+Y = Y[:700000]
+
 print(f'Full Dataset shape: {X.shape}, Labels: {np.unique(Y)}')
 
 #%%
 ### Preprocess for Classification
+from sklearn.decomposition import TruncatedSVD
+from sklearn.preprocessing import normalize, MaxAbsScaler
+# A) keep highly‑variable genes (2‑4 k) -------------------------------
+gene_var = X.power(2).mean(0).A1 - np.square(X.mean(0).A1)
+top = np.argsort(gene_var)[-4000:]          # top 4 000 HVGs
+X = X[:, top]
 
-# Remove genes which are overly or underly expressed heuristically to speed things up
-expr_frac = X.getnnz(axis=0) / X.shape[0]        # vector length == n_genes
-mask = (expr_frac >= 0.001) & (expr_frac <= 0.90) # 0.1‑90 % cells
-print(f'Keeping {np.sum(mask)} genes out of {X.shape[1]}')
-X = X[:, mask]
+# B) TF–IDF style normalise rows (optional but helps SVD & linear models)
+X = normalize(X, axis=1, norm='l1') * 1e4     # counts per 10k
+X.data = np.log1p(X.copy().data)                  # log1p in‑place
 
-# Log-transform the data
-X.data = np.log1p(X.copy().data)
+# C) MaxAbs scale (keeps sparsity) ------------------------------------
+X = MaxAbsScaler(copy=False).fit_transform(X)
+
+# D) Sparse SVD → dense PCs ------------------------------------------
+svd = TruncatedSVD(n_components=100, algorithm='randomized',
+                   n_iter=5, random_state=0)
+X = svd.fit_transform(X)   
+
+class_weight = {}
+for i,lab in enumerate(np.unique(Y)):
+    class_weight[i] = len(Y) / len(np.where(Y == lab)[0])
+    print(f'Class {lab} weighted as {class_weight[i]}')
 
 # Train/Test Split
 print('Splitting into train/test...')
-Y = LabelEncoder().fit_transform(Y) 
-x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=42, stratify=Y)
+Y_enc = LabelEncoder().fit_transform(Y) 
+x_train, x_test, y_train, y_test = train_test_split(X, Y_enc, test_size=0.5, random_state=42, stratify=Y)
 
 scaler = StandardScaler(with_mean=False)
 x_train = scaler.fit_transform(x_train)
@@ -80,13 +101,13 @@ NDIM = x_train.shape[1]
 input_layer = Input(shape=(NDIM,))
             
 dense = Dense(NDIM, activation = 'relu', kernel_initializer='he_normal')(input_layer)
-dense = Dropout(0.5)(dense)
-dense = Dense(int(NDIM / 100), activation = 'relu', kernel_initializer='he_normal')(dense)
-dense = Dropout(0.5)(dense)
-dense = Dense(int(NDIM / 1000), activation = 'relu', kernel_initializer='he_normal')(dense)
-dense = Dropout(0.5)(dense)
+# dense = Dropout(0.5)(dense)
+dense = Dense(NDIM, activation = 'relu', kernel_initializer='he_normal')(dense)
+# dense = Dropout(0.5)(dense)
+dense = Dense(NDIM, activation = 'relu', kernel_initializer='he_normal')(dense)
+# dense = Dropout(0.5)(dense)
 
-output = Dense(3, activation='softmax', kernel_initializer='he_normal')(dense)
+output = Dense(len(np.unique(Y)), activation='softmax', kernel_initializer='he_normal')(dense)
 
 
 model = Model(input_layer, output)
@@ -95,9 +116,9 @@ model.summary()
 
 # %%
 ### Train the model
-history = model.fit(x_train, y_train, epochs=100, batch_size=32, validation_split=0.2, verbose=1)
+history = model.fit(x_train, y_train, epochs=100, batch_size=64, validation_split=0.5, verbose=1, class_weight=class_weight)
 preds = model.predict(x_test)
 y_pred = np.argmax(preds, axis=1)
-print(classification_report(y_test, y_pred, target_names=['CA1', 'CA3', 'DG']))
-ConfusionMatrixDisplay.from_estimator(model, x_test, y_test, display_labels=['CA1', 'CA3', 'DG'], cmap='Blues', normalize='true')
+print(classification_report(y_test, y_pred), target_names = np.unique(Y).tolist())
+ConfusionMatrixDisplay.from_predictions(y_pred, y_test, cmap='Blues', normalize='true', display_labels=np.unique(Y).tolist())
 # %%
