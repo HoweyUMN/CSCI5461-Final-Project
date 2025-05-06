@@ -34,11 +34,33 @@ for path in tqdm(sample_paths, desc='Loading samples'):
 
 # %%
 ### Align the Genes
-common_genes = set(gene_lists[0]).intersection(*gene_lists[1:]) # We need to make sure genes exist in all classes
-keep_idx = [np.isin(g, list(common_genes)) for g in gene_lists]
-X = sp.sparse.vstack([m[:, k] for m, k in zip(X_list, keep_idx)], format='csr')
+all_genes = sorted(set().union(*gene_lists)) # Union increases complexity, but keeps potentially key genes
+G = len(all_genes)
+gene2glob = {g: i for i, g in enumerate(all_genes)}
+
+# Reindex genes for each dataset to reflect the union of all genes in the dataset
+aligned_X = []
+for x_sample, genes_sample in zip(X_list, gene_lists):
+    # map each local column to its global position
+    local2glob = np.array([gene2glob[g] for g in genes_sample])
+
+    # Convert to COO so we can rewrite column indices quickly
+    coo = x_sample.tocoo(copy=False)
+    new_cols = local2glob[coo.col]
+
+    reindexed = sp.sparse.csr_matrix(
+        (coo.data, (coo.row, new_cols)),
+        shape=(x_sample.shape[0], G), 
+        dtype=coo.data.dtype
+    )
+    aligned_X.append(reindexed)
+
+# Stack whole union together
+X = sp.sparse.vstack(aligned_X, format='csr')
 Y = np.concatenate(Y_list)
-genes = gene_lists[0][keep_idx[0]]         
+genes = np.array(all_genes)
+
+print(f"Using the UNION of genes ⇒ {G:,} features in total")  
 
 # Limit to certain cell types using marker genes specific to these cell types
 # marker_dict = {
