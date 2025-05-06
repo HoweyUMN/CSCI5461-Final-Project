@@ -60,7 +60,7 @@ X = sp.sparse.vstack(aligned_X, format='csr')
 Y = np.concatenate(Y_list)
 genes = np.array(all_genes)
 
-print(f"Using the UNION of genes ⇒ {G:,} features in total")  
+print(f"Using {G:,} features in total")  
 
 # Limit to certain cell types using marker genes specific to these cell types
 # marker_dict = {
