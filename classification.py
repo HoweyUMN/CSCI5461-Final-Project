@@ -85,7 +85,7 @@ print(f"Using {G:,} features in total")
 #     # Keep only markers that exist in all datasets to ensure cells are present in all regions
 #     idx = [gene2idx[m] for m in markers if m in gene2idx]
 #     if not idx:
-#         print(f"None of {markers} present after intersection; skipping {cname}")
+#         print(f"None of {markers} present after intersection; skipping {cname}") # Error checking (I believe this is obsolete now)
 #         continue
 #     expr = X[:, idx].toarray().sum(1).ravel()   
 #     class_masks[cname] = (expr > 0)
@@ -110,6 +110,7 @@ gene_var = X.power(2).mean(0).A1 - np.square(X.mean(0).A1)
 top = np.argsort(gene_var)[-4000:]
 X = X[:, top]
 
+# Scale and normalize the dataset to get better feature extraction
 X = normalize(X, axis=1, norm='l1') * 1e4
 X = X.copy();  X.data = np.log1p(X.data)
 X = MaxAbsScaler(copy=False).fit_transform(X)
@@ -122,21 +123,19 @@ X = svd.fit_transform(X)
 
 #%%
 # ### Load Presaved
-# data   = np.load("svd_output/svd_features.npz")
-# X  = data["X"]
+# data = np.load("svd_output/svd_features.npz")
+# X = data["X"]
 # Y = data["regions"]
 
 #%%
 ### Weight the classes
-class_weight = {i: len(Y) / np.sum(Y == lab)
-                for i, lab in enumerate(np.unique(Y))}
+class_weight = {i: len(Y) / np.sum(Y == lab) for i, lab in enumerate(np.unique(Y))}
 print("class weights:", class_weight)
 
 # %% 
 ### Preprocess for training with NN
 Y_enc = LabelEncoder().fit_transform(Y)
-x_train, x_test, y_train, y_test = train_test_split(
-        X, Y_enc, test_size=0.5, random_state=42, stratify=Y_enc)
+x_train, x_test, y_train, y_test = train_test_split(X, Y_enc, test_size=0.5, random_state=42, stratify=Y_enc)
 
 scaler = StandardScaler(with_mean=False)
 x_train = scaler.fit_transform(x_train)
@@ -158,8 +157,7 @@ hidden = Dense(NDIM, activation='relu', kernel_initializer='he_normal')(input)
 hidden = Dropout(0.5)(hidden)
 hidden = Dense(NDIM, activation='relu', kernel_initializer='he_normal')(hidden)
 hidden = Dropout(0.5)(hidden)
-output = Dense(len(np.unique(Y)), activation='softmax',
-            kernel_initializer='he_normal')(hidden)
+output = Dense(len(np.unique(Y)), activation='softmax', kernel_initializer='he_normal')(hidden)
 
 model = Model(input, output)
 model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
@@ -193,5 +191,5 @@ np.savez_compressed(
     X=X.astype(np.float32),         
     regions=Y                        
 )
-print(f"SVD features saved ➜ {out_dir/'svd_features.npz'}")
+print(f"SVD features saved! {out_dir/'svd_features.npz'}")
 # %%
