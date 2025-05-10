@@ -34,7 +34,9 @@ for path in tqdm(sample_paths, desc='Loading samples'):
     region = re.search(r'sMMr([A-Z]{3})', path.name).group(1) # Our class labels
     labels = np.repeat(region, x.shape[0])
 
-    X_list.append(x);  Y_list.append(labels);  gene_lists.append(genes)
+    X_list.append(x)
+    Y_list.append(labels)
+    gene_lists.append(genes)
 
 # %%
 ### Align the Genes
