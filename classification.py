@@ -1,6 +1,10 @@
 # %% 
 ### Imports
-import re, pandas as pd, numpy as np, scipy as sp, tensorflow as tf
+import re
+import pandas as pd
+import numpy as np
+import scipy as sp
+import tensorflow as tf
 from tqdm import tqdm
 from pathlib import Path
 import wandb
@@ -88,9 +92,9 @@ print(f"Using {G:,} features in total")
 # mask_matrix = np.column_stack(list(class_masks.values()))
 # # Cells with multiple expressions are just sorted into their first marker
 # winner = mask_matrix.argmax(1)                    
-# keep   = mask_matrix.sum(1) > 0                    
+# keep = mask_matrix.sum(1) > 0                    
 # X, region = X[keep], Y[keep]
-# subclass  = np.array(list(class_masks.keys()))[winner[keep]]
+# subclass= np.array(list(class_masks.keys()))[winner[keep]]
 
 # print("class counts:", pd.Series(subclass).value_counts().to_dict())
 
