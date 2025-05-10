@@ -1,4 +1,6 @@
 # %% 
+"""Author - Kyle Howey
+Version - May 10, 2025"""
 ### Imports
 import re, pandas as pd
 import numpy as np
